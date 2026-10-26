@@ -1,5 +1,5 @@
 // ===== CONFIGURAÇÃO: cole aqui os dados do seu projeto Supabase =====
-const SUPABASE_URL = 'https://ozfbsiptlhcedpzgzzmx.supabase.co/rest/v1/';
+const SUPABASE_URL = 'https://ozfbsiptlhcedpzgzzmx.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im96ZmJzaXB0bGhjZWRwemd6em14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwMDU5ODYsImV4cCI6MjEwODU4MTk4Nn0.bKom-tFsqo8s_fELM6vhizie3wYm4l0QdCZcW9o1mNY';
 // ====================================================================
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);

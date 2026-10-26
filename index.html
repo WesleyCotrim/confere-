@@ -13,7 +13,7 @@ sb.auth.getSession().then(({data:{session}})=>{ if(session) location.href='histo
 $('#f').onsubmit = async e => {
   e.preventDefault();
   const { error } = await sb.auth.signInWithPassword({ email: $('#e').value, password: $('#s').value });
-  if (error) return toast('Erro: ' + error.message, true);;
+  if (error) return toast('E-mail ou senha incorretos.', true);
   location.href = 'historico.html';
 };
 </script></body></html>
