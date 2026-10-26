@@ -1,0 +1,59 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Histórico</title>
+<link rel="stylesheet" href="css/style.css"></head><body>
+<header class="nav" id="nav"></header>
+<main><h1>Histórico de conferências</h1>
+<div class="card row">
+<div><label for="p">Produtor</label><select id="p"><option value="">Todos</option></select></div>
+<div><label for="de">De</label><input id="de" type="date"></div>
+<div><label for="ate">Até</label><input id="ate" type="date"></div>
+<div style="flex:0 0 auto"><button class="btn" id="bf">Filtrar</button> <button class="btn sec" id="csv">Exportar CSV</button></div></div>
+<div id="res"></div></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="js/app.js"></script>
+<script>
+let dados = [];
+async function buscar() {
+  let q = sb.from('conferencias').select('id,data,observacoes,produtores(nome),fotos(id,tipo,caminho)')
+    .order('data', { ascending: false }).order('criado_em', { ascending: false }).limit(50);
+  if ($('#p').value) q = q.eq('produtor_id', $('#p').value);
+  if ($('#de').value) q = q.gte('data', $('#de').value);
+  if ($('#ate').value) q = q.lte('data', $('#ate').value);
+  const { data, error } = await q;
+  if (error) return toast('Erro ao carregar: ' + error.message, true);
+  dados = data;
+  const paths = data.flatMap(c => c.fotos.map(f => f.caminho)), url = {};
+  if (paths.length) {
+    const { data: s } = await sb.storage.from(BUCKET).createSignedUrls(paths, 3600);
+    (s || []).forEach(x => url[x.path] = x.signedUrl);
+  }
+  $('#res').innerHTML = data.length ? data.map(c => `<div class="card">
+    <div class="list-item" style="border:0"><div><b>${esc(c.produtores?.nome)}</b> <span class="mut">${fmtData(c.data)}</span>
+    <div class="mut">${esc(c.observacoes)}</div></div><button class="del" data-id="${c.id}">Excluir</button></div>
+    <div class="thumbs">${c.fotos.sort((a,b)=>a.tipo<b.tipo?1:-1).map(f => `<a class="${f.tipo}" href="${url[f.caminho]}" target="_blank" rel="noopener" title="${f.tipo==='nota'?'Nota de separação':'Produto'}"><img loading="lazy" alt="${f.tipo}" src="${url[f.caminho]}"></a>`).join('')}</div>
+    <p class="mut">Contorno verde = nota de separação</p></div>`).join('')
+    : '<p class="mut">Nenhuma conferência neste filtro.</p>';
+}
+$('#bf').onclick = buscar;
+$('#res').onclick = async e => {
+  const id = e.target.dataset.id; if (!id || !confirm('Excluir esta conferência e todas as fotos?')) return;
+  const c = dados.find(x => x.id === id);
+  const r = await sb.storage.from(BUCKET).remove(c.fotos.map(f => f.caminho));
+  if (r.error) return toast(r.error.message, true);
+  const { error } = await sb.from('conferencias').delete().eq('id', id);
+  if (error) return toast(error.message, true);
+  toast('Conferência excluída.'); buscar();
+};
+$('#csv').onclick = () => {
+  const l = [['Data','Produtor','Observações','Fotos']].concat(dados.map(c => [fmtData(c.data), c.produtores?.nome, c.observacoes, c.fotos.length]));
+  const txt = l.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(';')).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + txt], { type: 'text/csv' }));
+  a.download = 'conferencias.csv'; a.click();
+};
+guard('historico').then(async s => {
+  if (!s) return;
+  const { data } = await sb.from('produtores').select('id,nome').order('nome');
+  $('#p').innerHTML += (data || []).map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('');
+  buscar();
+});
+</script></body></html>

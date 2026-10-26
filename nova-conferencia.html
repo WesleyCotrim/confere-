@@ -1,0 +1,60 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Nova conferência</title>
+<link rel="stylesheet" href="css/style.css"></head><body>
+<header class="nav" id="nav"></header>
+<main><h1>Nova conferência</h1>
+<form class="card" id="f">
+<div class="row"><div><label for="p">Produtor</label><select id="p" required></select></div>
+<div><label for="d">Data</label><input id="d" type="date" required></div></div>
+<label for="fp">Fotos dos produtos</label><input id="fp" type="file" accept="image/*" multiple>
+<div class="thumbs" id="tp"></div>
+<label for="fn">Fotos da nota de separação</label><input id="fn" type="file" accept="image/*" multiple>
+<div class="thumbs" id="tn"></div>
+<label for="o">Observações (opcional)</label><textarea id="o" rows="2"></textarea>
+<p><button class="btn" id="b">Salvar conferência</button> <span class="mut" id="st"></span></p></form></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="js/app.js"></script>
+<script>
+$('#d').value = new Date().toLocaleDateString('sv-SE');
+function previa(inp, box) {
+  inp.onchange = () => { box.innerHTML = [...inp.files].map(f => `<img alt="" src="${URL.createObjectURL(f)}">`).join(''); };
+}
+previa($('#fp'), $('#tp')); previa($('#fn'), $('#tn'));
+
+$('#f').onsubmit = async e => {
+  e.preventDefault();
+  const prod = [...$('#fp').files], nota = [...$('#fn').files];
+  if (!prod.length || !nota.length) return toast('Envie ao menos uma foto do produto e uma da nota.', true);
+  const b = $('#b'), st = $('#st'); b.disabled = true;
+  let confId, enviados = [];
+  try {
+    const { data, error } = await sb.from('conferencias').insert({
+      produtor_id: $('#p').value, data: $('#d').value, observacoes: $('#o').value.trim() || null }).select('id').single();
+    if (error) throw error; confId = data.id;
+    const itens = [...prod.map(f => ['produto', f]), ...nota.map(f => ['nota', f])];
+    let i = 0;
+    for (const [tipo, f] of itens) {
+      st.textContent = `Enviando foto ${++i} de ${itens.length}…`;
+      const blob = await comprimir(f, tipo === 'nota' ? 2000 : 1600, tipo === 'nota' ? 0.8 : 0.75);
+      const caminho = `${confId}/${tipo}-${Date.now()}-${i}.jpg`;
+      const up = await sb.storage.from(BUCKET).upload(caminho, blob, { contentType: 'image/jpeg' });
+      if (up.error) throw up.error; enviados.push(caminho);
+      const ins = await sb.from('fotos').insert({ conferencia_id: confId, tipo, caminho });
+      if (ins.error) throw ins.error;
+    }
+    toast('Conferência salva.'); setTimeout(() => location.href = 'historico.html', 800);
+  } catch (err) {
+    // desfaz o que foi enviado para não deixar registro pela metade
+    if (enviados.length) await sb.storage.from(BUCKET).remove(enviados);
+    if (confId) await sb.from('conferencias').delete().eq('id', confId);
+    toast('Não foi possível salvar: ' + err.message + '. Tente de novo.', true);
+    b.disabled = false; st.textContent = '';
+  }
+};
+guard('nova-conferencia').then(async s => {
+  if (!s) return;
+  const { data } = await sb.from('produtores').select('id,nome').order('nome');
+  $('#p').innerHTML = data?.length ? '<option value="">Selecione…</option>' + data.map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')
+    : '<option value="">Cadastre um produtor primeiro</option>';
+});
+</script></body></html>

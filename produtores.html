@@ -1,0 +1,43 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Produtores</title>
+<link rel="stylesheet" href="css/style.css"></head><body>
+<header class="nav" id="nav"></header>
+<main><h1>Produtores</h1>
+<form class="card row" id="f">
+<div><label for="n">Nome do produtor</label><input id="n" required></div>
+<div><label for="c">Contato (opcional)</label><input id="c"></div>
+<div style="flex:0 0 auto"><button class="btn">Cadastrar produtor</button></div></form>
+<input id="q" type="search" placeholder="Buscar produtor" aria-label="Buscar produtor">
+<div class="card" id="lista" style="margin-top:12px"></div></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="js/app.js"></script>
+<script>
+let todos = [];
+const norm = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+function render() {
+  const q = norm($('#q').value), l = todos.filter(p => norm(p.nome).includes(q));
+  $('#lista').innerHTML = l.length ? l.map(p => `<div class="list-item"><div><b>${esc(p.nome)}</b>
+    <div class="mut">${esc(p.contato)}</div></div><button class="del" data-id="${p.id}">Excluir</button></div>`).join('')
+    : '<p class="mut">Nenhum produtor encontrado. Cadastre o primeiro acima.</p>';
+}
+async function carregar() {
+  const { data, error } = await sb.from('produtores').select('*').order('nome');
+  if (error) return toast('Erro ao carregar: ' + error.message, true);
+  todos = data; render();
+}
+$('#q').oninput = render;
+$('#f').onsubmit = async e => {
+  e.preventDefault();
+  const nome = $('#n').value.trim();
+  const { error } = await sb.from('produtores').insert({ nome, contato: $('#c').value.trim() || null });
+  if (error) return toast(error.code === '23505' ? 'Esse produtor já está cadastrado.' : error.message, true);
+  e.target.reset(); toast('Produtor cadastrado.'); carregar();
+};
+$('#lista').onclick = async e => {
+  const id = e.target.dataset.id; if (!id || !confirm('Excluir este produtor?')) return;
+  const { error } = await sb.from('produtores').delete().eq('id', id);
+  if (error) return toast(error.code === '23503' ? 'Não dá para excluir: o produtor tem conferências registradas.' : error.message, true);
+  toast('Produtor excluído.'); carregar();
+};
+guard('produtores').then(s => s && carregar());
+</script></body></html>
